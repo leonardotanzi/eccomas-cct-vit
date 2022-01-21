@@ -7,34 +7,16 @@ import tensorflow_addons as tfa
 import tensorflow as tf
 import numpy as np
 import os
-from sklearn.utils import shuffle
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from sklearn.model_selection import train_test_split
+from utils import *
 
 
 positional_emb = True
 conv_layers = 2
 projection_dim = 128
-
-num_heads = 2
-transformer_units = [
-    projection_dim,
-    projection_dim,
-]
-transformer_layers = 2
-stochastic_depth_rate = 0.1
-
-classes_list = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
-
-learning_rate = 0.001
-weight_decay = 0.0001
-batch_size = 32
-num_epochs = 1
-image_size = 224
-num_classes = len(classes_list)
-input_shape = (224, 224, 3)
 
 
 def mlp(x, hidden_units, dropout_rate):
@@ -124,7 +106,7 @@ class CCTTokenizer(layers.Layer):
             return None
 
 
-def create_cct_model(image_size=image_size, input_shape=input_shape, num_heads=num_heads, projection_dim=projection_dim, transformer_units=transformer_units):
+def create_cct_model(image_size, input_shape, num_heads, projection_dim, transformer_units):
 
     inputs = layers.Input(input_shape)
 
@@ -184,59 +166,36 @@ def create_cct_model(image_size=image_size, input_shape=input_shape, num_heads=n
     return model
 
 
-def run_experiment(model):
-    optimizer = tfa.optimizers.AdamW(learning_rate=0.001, weight_decay=0.0001)
-
-    model.compile(
-        optimizer=optimizer,
-        loss=keras.losses.CategoricalCrossentropy(from_logits=True, label_smoothing=0.1),
-        metrics=[keras.metrics.CategoricalAccuracy(name="accuracy")],
-    )
-
-    checkpoint_filepath = "..\\Checkpoints\\"
-    checkpoint_callback = keras.callbacks.ModelCheckpoint(
-        checkpoint_filepath,
-        monitor="val_accuracy",
-        save_best_only=True,
-        save_weights_only=True,
-    )
-
-    history = model.fit(
-        x=X_train,
-        y=y_train,
-        batch_size=batch_size,
-        epochs=num_epochs,
-        validation_split=0.2,
-        callbacks=[checkpoint_callback],
-    )
-
-    model.load_weights(checkpoint_filepath)
-    _, accuracy = model.evaluate(X_val, y_val)
-    print(f"Test accuracy: {round(accuracy * 100, 2)}%")
-
-    return history
-
-
 if __name__ == "__main__":
+
+    seed_everything()
 
     dataset_path = "..\\..\\10-01-22_database_Aiello"
 
-    # datagen = tf.keras.preprocessing.image.ImageDataGenerator(validation_split=0.2, horizontal_flip=True, preprocessing_function=preprocess_input)
-    #
-    # valid_datagen = tf.keras.preprocessing.image.ImageDataGenerator(validation_split=0.2, preprocessing_function=preprocess_input)
-    #
-    # train_gen = datagen.flow_from_directory(directory=train_path, subset="training", classes=classes_list, batch_size=batch_size,
-    #                                         seed=1, color_mode='rgb', shuffle=True, class_mode='categorical', target_size=(image_size, image_size))
-    #
-    # valid_gen = valid_datagen.flow_from_directory(directory=train_path, subset='validation', classes=classes_list, batch_size=batch_size,
-    #                                           seed=1, color_mode='rgb', shuffle=False, class_mode='categorical', target_size=(image_size, image_size))
+    classes_list = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+
+    num_heads = 2
+    transformer_units = [
+        projection_dim,
+        projection_dim,
+    ]
+    transformer_layers = 2
+    stochastic_depth_rate = 0.1
+
+    learning_rate = 0.001
+    weight_decay = 0.0001
+    batch_size = 32
+    num_epochs = 1
+    image_size = 224
+    num_classes = len(classes_list)
+    input_shape = (224, 224, 3)
 
     X = []
     Y = []
 
     for c in classes_list:
         if os.path.isdir(os.path.join(dataset_path, c)):
-            for file_name in glob.glob(os.path.join(dataset_path, c) + "//*.jpg"):
+            for file_name in glob.glob(os.path.join(dataset_path, c) + "\\*.jpg"):
                 image = cv2.imread(file_name, cv2.COLOR_BGR2RGB)
                 if len(image.shape) < 3:
                     image = np.stack((image,) * 3, axis=-1)
@@ -249,7 +208,7 @@ if __name__ == "__main__":
                 y[classes_list.index(c)] = 1
                 Y.append(y)
 
-    X_full = np.asarray(X)
+    X_full = preprocess_input(np.asarray(X))
     y_full = np.asarray(Y)
 
     X_train, X_test, y_train, y_test = train_test_split(X_full, y_full, test_size=0.1, random_state=1, shuffle=True)
@@ -257,7 +216,7 @@ if __name__ == "__main__":
     print(f"x_train shape: {X_train.shape} - y_train shape: {y_train.shape}")
     print(f"x_test shape: {X_test.shape} - y_test shape: {y_test.shape}")
 
-    cct_model = create_cct_model()
+    cct_model = create_cct_model(image_size, input_shape, num_heads, projection_dim, transformer_units)
     optimizer = tfa.optimizers.AdamW(learning_rate=0.001, weight_decay=0.0001)
 
     cct_model.compile(
@@ -266,7 +225,7 @@ if __name__ == "__main__":
         metrics=[keras.metrics.CategoricalAccuracy(name="accuracy")],
     )
 
-    checkpoint_filepath = "Checkpoints\\CCT\\"
+    checkpoint_filepath = "..\\Checkpoints\\CCT\\"
     checkpoint_callback = keras.callbacks.ModelCheckpoint(
         checkpoint_filepath,
         monitor="val_accuracy",
@@ -299,8 +258,7 @@ if __name__ == "__main__":
     sns.heatmap(confusionmatrix, cmap='Blues', annot=True, cbar=True)
     plt.show()
 
-    confusionmatrix_norm = np.around(confusionmatrix.astype('float') / confusionmatrix.sum(axis=1)[:, np.newaxis],
-                                     decimals=2)
+    confusionmatrix_norm = np.around(confusionmatrix.astype('float') / confusionmatrix.sum(axis=1)[:, np.newaxis], decimals=2)
     print(confusionmatrix_norm)
     plt.figure(figsize=(16, 16))
     sns.heatmap(confusionmatrix_norm, cmap='Blues', annot=True, cbar=True)

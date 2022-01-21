@@ -12,20 +12,16 @@ import sklearn
 
 
 if __name__ == "__main__":
-    warnings.filterwarnings('ignore')
-    print('TensorFlow Version ' + tf.__version__)
 
     seed_everything()
+
+    dataset_path = "..\\..\\10-01-22_database_Aiello"
+    model_name = "ViT"
 
     image_size = 224
     batch_size = 16
     epochs = 1
-
     visualize_map = False
-
-    model_name = "ViT"
-
-    dataset_path = "..\\..\\10-01-22_database_Aiello"
 
     classes_list = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
 
@@ -114,8 +110,6 @@ if __name__ == "__main__":
               epochs=epochs,
               validation_split=0.1,
               callbacks=callbacks)
-
-    model.save(model_name + ".hdf5")
 
     if visualize_map:
 
