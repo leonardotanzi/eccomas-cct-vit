@@ -1,30 +1,35 @@
 import tensorflow_addons as tfa
-import glob, warnings
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
-import tensorflow.keras.layers as L
-from vit_keras import vit, visualize, layers
+from vit_keras import vit, visualize
 from utils import *
-from tensorflow.keras.callbacks import Callback
-import tensorflow.keras.backend as K
 import sklearn
 
 
 if __name__ == "__main__":
 
+    # set each random seed to a fixed value to produce results which will remain the same at each run
     seed_everything()
 
+    image_size = 224
+
+    # parameters to change
     dataset_path = "..\\..\\10-01-22_database_Aiello"
     model_name = "ViT"
 
-    image_size = 224
     batch_size = 16
-    epochs = 1
+    epochs = 20
+    learning_rate = 1e-4
+
+    # to visualize feature map
     visualize_map = False
 
+    # use just two classes for binary classification
+    # classes_list = ["C1", "C2"]
     classes_list = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
 
+    # read the images
     X = []
     Y = []
 
@@ -47,69 +52,45 @@ if __name__ == "__main__":
     X_full = vit.preprocess_inputs(X_full)
     y_full = np.asarray(Y)
 
-    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X_full, y_full, test_size=0.1, random_state=1)
+    # split in train and test which will be used later
+    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X_full, y_full, test_size=0.1,
+                                                                                random_state=1)
 
-    vit_model = vit.vit_l16(
-            image_size=image_size,
-            activation='softmax',
-            pretrained=True,
-            include_top=False,
-            pretrained_top=False,
-            classes=len(classes_list))
+    # import the vit model, pretrained. other model l32, b16, b32
+    vit_model = vit.vit_l16(image_size=image_size, activation='softmax', pretrained=True, include_top=False,
+                            pretrained_top=False, classes=len(classes_list))
 
     vit_model.summary()
 
+    # add some layer at the end for fine-tuning
     model = tf.keras.Sequential([
             vit_model,
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(2048, activation=tf.nn.gelu),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dropout(0.5),
-            tf.keras.layers.Dense(len(classes_list), 'softmax')
-                ],
+            tf.keras.layers.Dense(len(classes_list), 'softmax')],
         name='vision_transformer')
 
     model.summary()
 
-    learning_rate = 1e-4
-
     optimizer = tfa.optimizers.RectifiedAdam(learning_rate=learning_rate)
 
-    model.compile(optimizer=optimizer,
-                  loss="categorical_crossentropy",
-                  metrics=['accuracy'])
+    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=['accuracy'])
 
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy',
-                                                     factor=0.2,
-                                                     patience=4,
-                                                     verbose=1,
-                                                     min_delta=1e-4,
-                                                     min_lr=1e-6,
-                                                     mode='max')
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.2, patience=4, verbose=1,
+                                                     min_delta=1e-4, min_lr=1e-6, mode='max')
 
-    earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy',
-                                                     min_delta=1e-4,
-                                                     patience=20,
-                                                     mode='max',
-                                                     restore_best_weights=True,
-                                                     verbose=1)
+    earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=1e-4, patience=20, mode='max',
+                                                     restore_best_weights=True, verbose=1)
 
     checkpointer = tf.keras.callbacks.ModelCheckpoint(filepath="..\\Checkpoints\\ViT\\" + model_name + "-{epoch:02d}.hdf5",
-                                                      monitor="val_accuracy",
-                                                      verbose=1,
-                                                      save_best_only=False,
-                                                      save_weights_only=False,
-                                                      mode="max",
-                                                      period=10)
+                                                      monitor="val_accuracy", verbose=1, save_best_only=True,
+                                                      save_weights_only=True, mode="max")
 
     callbacks = [earlystopping, checkpointer, reduce_lr]
 
-    model.fit(x=X_train,
-              y=y_train,
-              batch_size=batch_size,
-              epochs=epochs,
-              validation_split=0.1,
-              callbacks=callbacks)
+    model.fit(x=X_train, y=y_train, batch_size=batch_size, epochs=epochs, validation_split=0.1, callbacks=callbacks)
 
     if visualize_map:
 
@@ -140,17 +121,20 @@ if __name__ == "__main__":
             cv2.imwrite("..\\Map\\Map-{}-{}-{}.png".format(label, label_pred, i), attention_map)
             i += 1
 
+    # evaluate model
     print(model.evaluate(X_test, y_test, batch_size=batch_size))
 
     predicted_classes = np.argmax(model.predict(X_test), axis=1)
     true_classes = np.argmax(y_test, axis=1)
 
+    #compute confusion matrix
     confusionmatrix = confusion_matrix(true_classes, predicted_classes)
     print(confusionmatrix)
     plt.figure(figsize=(16, 16))
     sns.heatmap(confusionmatrix, cmap='Blues', annot=True, cbar=True)
     plt.show()
 
+    # compute confusion matrix with percentages
     confusionmatrix_norm = np.around(confusionmatrix.astype('float') / confusionmatrix.sum(axis=1)[:, np.newaxis], decimals=2)
     print(confusionmatrix_norm)
     plt.figure(figsize=(16, 16))

@@ -1,12 +1,7 @@
 from tensorflow.keras import layers
 from tensorflow import keras
-import glob
-import cv2
 import matplotlib.pyplot as plt
 import tensorflow_addons as tfa
-import tensorflow as tf
-import numpy as np
-import os
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
 from tensorflow.keras.applications.vgg16 import preprocess_input
@@ -170,8 +165,13 @@ if __name__ == "__main__":
 
     seed_everything()
 
-    dataset_path = "..\\..\\10-01-22_database_Aiello"
+    image_size = 224
+    input_shape = (224, 224, 3)
 
+    # parameters to change
+    dataset_path = "..\\..\\10-01-22_database_Aiello"
+    # use just two classes for binary classification
+    # classes_list = ["C1", "C2"]
     classes_list = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
 
     num_heads = 2
@@ -181,14 +181,11 @@ if __name__ == "__main__":
     ]
     transformer_layers = 2
     stochastic_depth_rate = 0.1
-
     learning_rate = 0.001
     weight_decay = 0.0001
     batch_size = 32
-    num_epochs = 1
-    image_size = 224
+    num_epochs = 20
     num_classes = len(classes_list)
-    input_shape = (224, 224, 3)
 
     X = []
     Y = []
@@ -226,22 +223,13 @@ if __name__ == "__main__":
     )
 
     checkpoint_filepath = "..\\Checkpoints\\CCT\\"
-    checkpoint_callback = keras.callbacks.ModelCheckpoint(
-        checkpoint_filepath,
-        monitor="val_accuracy",
-        save_best_only=True,
-        save_weights_only=True,
-    )
+    checkpoint_callback = keras.callbacks.ModelCheckpoint( checkpoint_filepath, monitor="val_accuracy",
+                                                           save_best_only=True, save_weights_only=True)
 
-    history = cct_model.fit(
-        x=X_train,
-        y=y_train,
-        batch_size=batch_size,
-        epochs=num_epochs,
-        validation_split=0.2,
-        callbacks=[checkpoint_callback],
-    )
+    history = cct_model.fit(x=X_train, y=y_train, batch_size=batch_size, epochs=num_epochs, validation_split=0.2,
+                            callbacks=[checkpoint_callback],)
 
+    # evaluate
     cct_model.load_weights(checkpoint_filepath)
     _, accuracy = cct_model.evaluate(X_test, y_test)
     print(f"Test accuracy: {round(accuracy * 100, 2)}%")
@@ -250,7 +238,6 @@ if __name__ == "__main__":
 
     predicted_classes = np.argmax(cct_model.predict(X_test), axis=1)
     true_classes = np.argmax(y_test, axis=1)
-    # class_labels = list(test_gen.class_indices.keys())
 
     confusionmatrix = confusion_matrix(true_classes, predicted_classes)
     print(confusionmatrix)
