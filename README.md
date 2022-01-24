@@ -15,7 +15,8 @@ CCT: https://arxiv.org/abs/2104.05704
 If you're pc is not set for Deep Learning application, I suggest you to follow this tutorial: \
 https://towardsdatascience.com/python-environment-setup-for-deep-learning-on-windows-10-c373786e36d1
 
-Once CUDA, CUDNN and conda are installed, import the conda env in this folder with: \
+Once CUDA, CUDNN and Conda are installed, import and activate the conda environment TF_25.yml in the main folder with:
 ```
 conda env create -f TF_25.yml
+conda activate TF_25
 ```
